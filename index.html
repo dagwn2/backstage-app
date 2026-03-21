@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Recital App</title>
+
+<style>
+body { font-family: Arial, sans-serif; margin:0; background:#faf9fc; color:#222; }
+
+header#recitalTitle { 
+  background:#4B2E83; color:white; padding:15px; text-align:center; font-size:28px; font-weight:bold; 
+}
+
+.file-picker { text-align:center; margin:10px 0; }
+
+.container { display:flex; height:calc(100vh - 160px); }
+
+.column { flex:1; padding:12px; display:flex; flex-direction:column; position: relative; }
+
+.column#recitalColumn,
+.column.now-playing-column {
+  background: linear-gradient(to bottom, #e6e0f8, #f3edff);
+  border-top:3px solid #4B2E83;
+}
+
+/* 🔥 CLEAN HEADER (no underline, subtle glow) */
+.column h2 {
+  color: white;
+  margin: 0;
+  padding: 16px 10px;
+  text-align: center;
+  font-size: 26px;
+  font-weight: bold;
+  letter-spacing: 1px;
+
+  position: sticky;
+  top: 0;
+
+  background: linear-gradient(to right, #4B2E83, #6a4fcf);
+  border-bottom: 4px solid #2e1a5a;
+
+  box-shadow: 
+    0 4px 10px rgba(0,0,0,0.2),
+    0 0 10px rgba(156,94,255,0.4);
+
+  text-transform: uppercase;
+}
+
+/* Slight emphasis for NOW ON STAGE */
+.now-playing-column h2 {
+  font-size: 30px;
+  background: linear-gradient(to right, #5e3bd1, #9c5eff);
+}
+
+.scrollableList { overflow-y:auto; flex:1; padding:10px 0; }
+
+.routine { 
+  background: rgba(76,46,131,0.1); 
+  margin:8px 0; 
+  padding:16px; 
+  border-radius:8px; 
+  cursor:pointer; 
+  font-size:18px; 
+  position:relative; 
+}
+
+.routine.performed { text-decoration:line-through; color:#999; }
+
+.routine.upNext { 
+  background:#4B2E83; 
+  color:white;
+  animation: glowPulse 1s ease infinite alternate;
+  box-shadow: 0 0 12px 3px rgba(76,46,131,0.7);
+  transform: scale(1.03);
+}
+
+.routine.current { background:#9c5eff; color:white; font-weight:bold; }
+
+.routine .label { 
+  position:absolute; 
+  right:12px; 
+  top:50%; 
+  transform:translateY(-50%); 
+  font-weight:bold; 
+  color:white; 
+}
+
+.now-playing { flex:1; display:flex; flex-direction: column; }
+
+.routine-container-wrapper { 
+  flex:1; display:flex; justify-content:center; align-items:center; 
+}
+
+.routine-container { text-align:center; }
+
+.now-playing .routine-name { font-size:64px; font-weight:bold; }
+.now-playing .routine-class { font-size:36px; color:#4B2E83; }
+
+.controls button {
+  width: 100%;
+  padding: 25px;
+  font-size:24px;
+  background:#4B2E83;
+  color:white;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+}
+
+.controls button:active {
+  transform: scale(0.97);
+}
+
+.routine-container.animate {
+  animation: stageEnter 0.6s ease;
+}
+
+@keyframes stageEnter {
+  0% { opacity:0; transform:scale(0.85) translateY(40px); filter:blur(6px); }
+  60% { opacity:1; transform:scale(1.05) translateY(-5px); }
+  100% { transform:scale(1) translateY(0); }
+}
+
+.spotlight-flash {
+  position:absolute;
+  top:50%;
+  left:50%;
+  width:0;
+  height:0;
+  border-radius:50%;
+  background: radial-gradient(circle, rgba(255,255,255,0.9), rgba(156,94,255,0.4), transparent 70%);
+  transform:translate(-50%, -50%);
+  animation: spotlightFlash 0.6s ease-out;
+}
+
+@keyframes spotlightFlash {
+  0% { width:0; height:0; opacity:0.9; }
+  70% { width:400px; height:400px; opacity:0.6; }
+  100% { width:600px; height:600px; opacity:0; }
+}
+
+.fly-to-stage {
+  position: fixed;
+  z-index: 9999;
+  transition: all 0.6s ease;
+  pointer-events: none;
+}
+
+@keyframes glowPulse {
+  0% { box-shadow: 0 0 8px 2px rgba(76,46,131,0.5); }
+  100% { box-shadow: 0 0 16px 6px rgba(76,46,131,0.9); }
+}
+</style>
+</head>
+
+<body>
+
+<header id="recitalTitle">Recital</header>
+
+<div class="file-picker">
+  <input type="file" id="fileInput" accept=".csv">
+</div>
+
+<div class="container">
+
+  <div class="column" id="recitalColumn">
+    <h2>RECITAL ORDER</h2>
+    <div id="recitalOrder" class="scrollableList"></div>
+  </div>
+
+  <div class="column now-playing-column">
+    <h2>NOW ON STAGE</h2>
+
+    <div class="now-playing">
+      <div class="routine-container-wrapper">
+        <div class="routine-container">
+          <div id="nowName" class="routine-name">---</div>
+          <div id="nowClass" class="routine-class"></div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="nextBtn">NEXT ROUTINE</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let routines=[];
+let mainIndex=-1;
+let currentIndex=-1;
+let playNextIndex=null;
+let lastTap=0;
+let nextTap=0;
+let nextLocked=false;
+let lastAnimatedIndex=-1;
+let lastScrolledIndex=-1;
+
+document.getElementById("fileInput").addEventListener("change", e=>{
+  const file=e.target.files[0];
+  if(!file) return;
+
+  const reader=new FileReader();
+  reader.onload=evt=>{
+    routines=parseCSV(evt.target.result);
+    mainIndex=-1; currentIndex=-1; playNextIndex=null;
+    render();
+  };
+  reader.readAsText(file);
+});
+
+function parseCSV(text){
+  const lines=text.trim().split("\n").map(l=>l.trim()).filter(l=>l);
+  document.getElementById("recitalTitle").textContent=lines[0]||"Recital";
+
+  return lines.slice(1).map(line=>{
+    const p=line.split(",");
+    return { number:p[0]?.trim(), name:p[1]?.trim(), class:p[2]?.trim(), performed:false };
+  });
+}
+
+function formatRoutineOrder(r){
+  return `${r.number? r.number+" ":""}${r.name}${r.class? " ("+r.class+")":""}`;
+}
+
+function scrollToRoutine(index){
+  const list = document.getElementById("recitalOrder");
+  const items = list.querySelectorAll(".routine");
+  if(!items[index]) return;
+
+  items[index].scrollIntoView({
+    behavior: "smooth",
+    block: "center"
+  });
+}
+
+function updateNowPerforming(){
+  const name=document.getElementById("nowName");
+  const cls=document.getElementById("nowClass");
+  const container=document.querySelector(".routine-container");
+
+  if(currentIndex>=0 && routines[currentIndex]){
+    name.textContent=routines[currentIndex].name||"---";
+    cls.textContent=routines[currentIndex].class||"";
+  } else {
+    name.textContent="---";
+    cls.textContent="";
+  }
+
+  if(currentIndex !== lastAnimatedIndex){
+    container.classList.remove("animate");
+    void container.offsetWidth;
+    container.classList.add("animate");
+    lastAnimatedIndex = currentIndex;
+  }
+}
+
+function getNextUnperformedIndex(){
+  let i=mainIndex+1;
+  while(i<routines.length && routines[i].performed) i++;
+  return i<routines.length? i:-1;
+}
+
+function render(){
+  const el=document.getElementById("recitalOrder");
+  el.innerHTML="";
+
+  const nextIndex=playNextIndex!==null?playNextIndex:getNextUnperformedIndex();
+
+  routines.forEach((r,i)=>{
+    const d=document.createElement("div");
+    d.className="routine";
+
+    if(r.performed) d.classList.add("performed");
+    if(i===currentIndex) d.classList.add("current");
+    if(i===nextIndex) d.classList.add("upNext");
+
+    d.textContent=formatRoutineOrder(r);
+
+    if(i===currentIndex){
+      const l=document.createElement("span");
+      l.className="label"; l.textContent="ON STAGE";
+      d.appendChild(l);
+    }
+
+    if(i===nextIndex){
+      const l=document.createElement("span");
+      l.className="label"; l.textContent="UP NEXT";
+      d.appendChild(l);
+    }
+
+    if(!r.performed && i!==currentIndex){
+      d.onclick=()=>{
+        const now=Date.now();
+
+        if(now - lastTap < 300){
+          const previousCurrent = currentIndex;
+          playNextIndex = (playNextIndex === i) ? null : i;
+
+          requestAnimationFrame(() => {
+            currentIndex = previousCurrent;
+            render();
+          });
+        }
+
+        lastTap = now;
+      };
+    }
+
+    el.appendChild(d);
+  });
+
+  updateNowPerforming();
+
+  const nextIdx = playNextIndex !== null ? playNextIndex : getNextUnperformedIndex();
+  const targetIndex = currentIndex >= 0 ? currentIndex : nextIdx;
+
+  if(targetIndex >= 0 && targetIndex !== lastScrolledIndex){
+    scrollToRoutine(targetIndex);
+    lastScrolledIndex = targetIndex;
+  }
+}
+
+document.getElementById("nextBtn").addEventListener("click", function(){
+  const now=Date.now();
+  if(nextLocked) return;
+
+  if(now-nextTap<400){
+    nextRoutine();
+    nextLocked=true;
+    setTimeout(()=> nextLocked=false, 600);
+  }
+
+  nextTap=now;
+});
+
+function triggerSpotlight(){
+  const col=document.querySelector(".now-playing-column");
+  const flash=document.createElement("div");
+  flash.className="spotlight-flash";
+  col.appendChild(flash);
+  setTimeout(()=>flash.remove(),600);
+}
+
+function nextRoutine(){
+  const nextIndex = playNextIndex!==null ? playNextIndex : getNextUnperformedIndex();
+  if(nextIndex === -1) return;
+
+  const listItems = document.querySelectorAll(".routine");
+  const nextEl = listItems[nextIndex];
+  const stageBox = document.querySelector(".routine-container");
+
+  if(nextEl){
+    const rect = nextEl.getBoundingClientRect();
+    const stageRect = stageBox.getBoundingClientRect();
+
+    const clone = nextEl.cloneNode(true);
+    clone.classList.add("fly-to-stage");
+
+    clone.style.left = rect.left + "px";
+    clone.style.top = rect.top + "px";
+    clone.style.width = rect.width + "px";
+
+    document.body.appendChild(clone);
+
+    void clone.offsetWidth;
+
+    clone.style.left = stageRect.left + "px";
+    clone.style.top = stageRect.top + "px";
+    clone.style.width = stageRect.width + "px";
+    clone.style.opacity = "0.3";
+
+    setTimeout(()=>{
+      clone.remove();
+
+      triggerSpotlight();
+
+      if(currentIndex>=0) routines[currentIndex].performed=true;
+
+      if(playNextIndex!==null){
+        currentIndex=playNextIndex;
+        playNextIndex=null;
+      } else {
+        currentIndex=nextIndex;
+        mainIndex=currentIndex;
+      }
+
+      render();
+    }, 600);
+
+  } else {
+    triggerSpotlight();
+
+    if(currentIndex>=0) routines[currentIndex].performed=true;
+
+    currentIndex = nextIndex;
+    mainIndex = currentIndex;
+
+    render();
+  }
+}
+</script>
+
+</body>
+</html>
