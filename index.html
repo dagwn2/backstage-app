@@ -32,6 +32,29 @@ header#recitalTitle {
 
 .file-picker { text-align:center; margin:10px 0; }
 
+/* Hidden default file input */
+#fileInput {
+  display: none;
+}
+
+/* Custom button styling */
+.custom-file-btn {
+  padding: 10px 16px;
+  background-color: #4B2E83;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+
+#fileNameDisplay {
+  font-weight: bold;
+  margin-left: 12px;
+  font-size: 16px;
+}
+
 .container { display:flex; height:calc(100vh - 160px); }
 
 .column { flex:1; padding:12px; display:flex; flex-direction:column; position: relative; }
@@ -174,8 +197,12 @@ header#recitalTitle {
 </header>
 
 <div class="file-picker">
+  <!-- Hidden file input -->
   <input type="file" id="fileInput" accept=".csv">
-  <label for="fileInput">Recital Order File</label>
+
+  <!-- Custom button -->
+  <button id="fileBtn" class="custom-file-btn">Select Recital File</button>
+  <span id="fileNameDisplay"></span>
 </div>
 
 <div class="container">
@@ -217,23 +244,34 @@ let lastScrolledIndex=-1;
 
 const picker = document.querySelector(".file-picker");
 const reloadBtn = document.getElementById("reloadBtn");
+const fileInput = document.getElementById("fileInput");
+const fileBtn = document.getElementById("fileBtn");
+const fileNameDisplay = document.getElementById("fileNameDisplay");
 
+// Reload button shows picker
 reloadBtn.onclick = () => {
   picker.style.display = "block";
   reloadBtn.style.display = "none";
 };
 
-document.getElementById("fileInput").addEventListener("change", e=>{
-  const file=e.target.files[0];
-  if(!file) return;
+// Custom button triggers file input
+fileBtn.addEventListener("click", () => fileInput.click());
 
-  const reader=new FileReader();
-  reader.onload=evt=>{
-    routines=parseCSV(evt.target.result);
+// File selection
+fileInput.addEventListener("change", e => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = evt => {
+    routines = parseCSV(evt.target.result);
     mainIndex=-1; currentIndex=-1; playNextIndex=null;
 
     picker.style.display = "none";
     reloadBtn.style.display = "block";
+
+    // Show file name
+    fileNameDisplay.textContent = `Loaded: ${file.name}`;
 
     render();
   };
