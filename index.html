@@ -6,6 +6,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta charset="UTF-8">
+<link rel="manifest" href="manifest.json>
+<meta name="theme-color" content="#4B2E83">
 <title>BACKSTAGE</title>
 
 <style>
@@ -467,7 +469,15 @@ function nextRoutine(){
     render();
   }
 }
-</script>
+<// Register service worker (enables offline mode)
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./service-worker.js')
+      .then(() => console.log('Service Worker Registered'))
+      .catch(err => console.log('SW failed:', err));
+  });
+}
+/script>
 
 </body>
 </html>
