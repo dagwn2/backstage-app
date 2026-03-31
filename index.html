@@ -59,6 +59,7 @@ header {
   margin:8px 0;
   padding:14px;
   border-radius:8px;
+  font-size:18px;
 }
 
 .routine.current { background:#9c5eff; color:white; }
@@ -74,8 +75,6 @@ header {
 
 .routine-name { font-size:48px; font-weight:bold; }
 .routine-class { font-size:24px; color:#4B2E83; }
-
-button { cursor:pointer; }
 
 .controls button {
   width:100%;
@@ -126,6 +125,9 @@ button { cursor:pointer; }
 <script>
 let routines=[];
 let currentIndex=-1;
+let playNextIndex=null;
+let lastTapTime=0;
+let lastTappedIndex=null;
 
 const fileInput = document.getElementById("fileInput");
 const fileBtn = document.getElementById("fileBtn");
@@ -145,6 +147,7 @@ fileInput.addEventListener("change", e => {
     const text = evt.target.result;
 
     localStorage.setItem("csv", text);
+    localStorage.setItem("fileName", file.name);
 
     loadCSV(text);
     fileNameDisplay.textContent = file.name;
@@ -157,10 +160,11 @@ fileInput.addEventListener("change", e => {
 // RELOAD BUTTON
 reloadBtn.onclick = () => {
   localStorage.removeItem("csv");
+  localStorage.removeItem("fileName");
   location.reload();
 };
 
-// LOAD CSV FUNCTION
+// LOAD CSV
 function loadCSV(text){
   const lines = text.trim().split("\n");
 
@@ -171,8 +175,7 @@ function loadCSV(text){
     const p = line.split(",");
     return {
       name: p[1],
-      class: p[2],
-      performed:false
+      class: p[2]
     };
   });
 
@@ -182,7 +185,13 @@ function loadCSV(text){
 // AUTO LOAD SAVED
 window.onload = () => {
   const saved = localStorage.getItem("csv");
-  if (saved) loadCSV(saved);
+  const name = localStorage.getItem("fileName");
+
+  if (saved) {
+    loadCSV(saved);
+    fileNameDisplay.textContent = name || "Loaded file";
+    reloadBtn.style.display = "block";
+  }
 };
 
 // RENDER
@@ -190,14 +199,34 @@ function render(){
   const list = document.getElementById("recitalOrder");
   list.innerHTML = "";
 
+  const nextIndex = playNextIndex !== null
+    ? playNextIndex
+    : currentIndex + 1;
+
   routines.forEach((r,i)=>{
     const d = document.createElement("div");
     d.className = "routine";
 
     if(i === currentIndex) d.classList.add("current");
-    if(i === currentIndex+1) d.classList.add("upNext");
+    if(i === nextIndex) d.classList.add("upNext");
 
     d.textContent = r.name + (r.class ? " ("+r.class+")" : "");
+
+    // DOUBLE TAP
+    d.onclick = () => {
+      const now = Date.now();
+
+      if (
+        lastTappedIndex === i &&
+        now - lastTapTime < 300
+      ) {
+        playNextIndex = (playNextIndex === i) ? null : i;
+        render();
+      }
+
+      lastTapTime = now;
+      lastTappedIndex = i;
+    };
 
     list.appendChild(d);
   });
@@ -205,7 +234,7 @@ function render(){
   updateNow();
 }
 
-// UPDATE NOW
+// UPDATE NOW PLAYING
 function updateNow(){
   const r = routines[currentIndex];
 
@@ -215,8 +244,18 @@ function updateNow(){
 
 // NEXT BUTTON
 document.getElementById("nextBtn").onclick = () => {
-  if(currentIndex < routines.length - 1){
-    currentIndex++;
+
+  let nextIndex;
+
+  if(playNextIndex !== null){
+    nextIndex = playNextIndex;
+    playNextIndex = null;
+  } else {
+    nextIndex = currentIndex + 1;
+  }
+
+  if(nextIndex < routines.length){
+    currentIndex = nextIndex;
     render();
   }
 };
