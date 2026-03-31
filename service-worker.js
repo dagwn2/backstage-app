@@ -1,4 +1,4 @@
-const CACHE_NAME = "backstage-v1";
+const CACHE_NAME = "backstage-v2";
 
 const ASSETS = [
   "./",
