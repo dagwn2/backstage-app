@@ -213,8 +213,11 @@ function nextRoutine(){
   }
 }
 
-// ✅ PWA service worker registration
-if('serviceWorker' in navigator){ navigator.serviceWorker.register('./service-worker.js'); }
+// ✅ PWA service worker registration with immediate update
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./service-worker.js').then(reg => {
+    reg.update(); // force check for updates on page load
+  });
 </script>
 
 </body>
